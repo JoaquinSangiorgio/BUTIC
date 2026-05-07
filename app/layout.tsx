@@ -7,7 +7,7 @@ import './globals.css'
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'WISH Gestion ',
+  title: 'BUTIC Gestion ',
   description: 'Sistema de gestion de inventario ',
   icons: {
     icon: [

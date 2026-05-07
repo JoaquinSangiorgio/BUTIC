@@ -56,7 +56,7 @@ export function LoginForm() {
               <Zap className="w-8 h-8 text-white fill-current" />
             </div>
             <h1 className="text-4xl font-black tracking-tighter text-white uppercase italic leading-none">
-              WI<span className="text-indigo-500 not-italic">SH</span>
+              BU<span className="text-indigo-500 not-italic">TIC</span>
             </h1>
             <div className="flex items-center gap-2 mt-3">
               <div className="h-[1px] w-4 bg-slate-700" />

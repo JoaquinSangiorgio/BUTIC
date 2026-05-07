@@ -44,14 +44,14 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       
       // 1. Filtrar items con poco stock (Usamos la misma lógica del store para ser consistentes)
       const lowStock = bottles
-        .filter((b: Botella) => b.tipo === 'botella' && Number(b.stockMl) <= Number(b.stockMinMl))
+        .filter((b: Botella) => b.tipo === 'botella' && Number(b.stockActual) <= Number(b.stockMinimo))
         .slice(0, 5)
       setLowStockItems(lowStock)
 
       //POCO STOCK: Si queremos ser más estrictos, podríamos ordenar por el porcentaje de stock restante para mostrar primero los más críticos. Ejemplo:
           const out_of_stock = bottles
-          .filter((b: Botella) => b.tipo === 'botella' && Number(b.stockMl) <= Number(b.stockMinMl))
-            .sort((a, b) => (Number(a.stockMl) / Number(a.stockMinMl)) - (Number(b.stockMl) / Number(b.stockMinMl)))
+          .filter((b: Botella) => b.tipo === 'botella' && Number(b.stockActual) <= Number(b.stockMinimo))
+            .sort((a, b) => (Number(a.stockActual) / Number(a.stockMinimo)) - (Number(b.stockActual) / Number(b.stockMinimo)))
             .slice(0, 5)
           setLowStockItems(lowStock)
       
@@ -166,7 +166,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             {lowStockItems.length === 0 ? (
               <p className="text-slate-700 font-black uppercase italic text-xs py-10 text-center">Todo en orden en la barra</p>
             ) : lowStockItems.map(item => {
-              const stockRestante = (Number(item.stockMl || 0) / Number(item.mlPorUnidad || 750)).toFixed(1);
+              const stockRestante = (Number(item.stockActual ?? 0)).toFixed(1);
               return (
                 <div key={item.id} className="flex items-center justify-between bg-slate-900/50 p-5 rounded-2xl border border-slate-800 hover:border-orange-500/30 transition-colors">
                   <div className="flex items-center gap-4">

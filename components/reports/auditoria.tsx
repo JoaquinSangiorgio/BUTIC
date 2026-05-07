@@ -28,8 +28,8 @@ export function Auditoria({ movements }: AuditTabProps) {
     // Capturamos el nombre de quien hizo la operación
     const vendedor = group.userName || group.createdBy || 'Sistema';
     
-    // Extraer beneficiario de la nota
-    const paraQuien = group.details[0]?.notas?.match(/Para:\s*([^|]+)/i)?.[1]?.trim();
+    const paraQuien = group.beneficiario || group.details.find((d: any) => d.beneficiario)?.beneficiario || null;
+    const autorizadoPorTicket = group.autorizadoPor || group.details.find((d: any) => d.autorizadoPor)?.autorizadoPor || null;
 
     ticketWindow.document.write(`
       <html>
@@ -62,6 +62,7 @@ export function Auditoria({ movements }: AuditTabProps) {
             <span>${isCourtesy ? 'INVITACIÓN/REGALO' : paymentMethod.toUpperCase()}</span>
           </div>
           ${paraQuien ? `<div class="item"><span>PARA:</span><span>${paraQuien.toUpperCase()}</span></div>` : ''}
+          ${autorizadoPorTicket ? `<div class="item"><span>AUTORIZADO:</span><span>${autorizadoPorTicket.toUpperCase()}</span></div>` : ''}
           <div class="total">
             <span>TOTAL:</span>
             <span>$${total.toLocaleString()}</span>
@@ -89,24 +90,29 @@ export function Auditoria({ movements }: AuditTabProps) {
         const items = movements.filter((item: any) => {
           const itemTicket = item.notas?.match(/TICK-\d+/i);
           const currentItemTicketId = itemTicket ? itemTicket[0] : null;
-          return item.batchId === gId || currentItemTicketId === gId;
+          const matchesTicket = item.batchId === gId || currentItemTicketId === gId;
+          return matchesTicket && !(item.esInsumo === true || item.notas?.includes('HIDE_FROM_HISTORY'));
         });
 
         const isEntry = m.tipo === 'entrada';
-        const latestDate = items.length > 0 
-          ? items.reduce((latest, current) => 
-              new Date(current.createdAt).getTime() > new Date(latest).getTime() ? current.createdAt : latest, 
+        const latestDate = items.length > 0
+          ? items.reduce((latest, current) =>
+              new Date(current.createdAt).getTime() > new Date(latest).getTime() ? current.createdAt : latest,
               m.createdAt)
           : m.createdAt;
+
+        const representante = items.find((i: any) => !i.notas?.includes('HIDE_FROM_HISTORY')) || m;
 
         res.push({
           id: gId,
           isGroup: true,
-          tipo: m.tipo,
+          tipo: representante.tipo,
           createdAt: latestDate,
-          nombreUsuario: m.nombreUsuario,
+          nombreUsuario: representante.nombreUsuario,
+          autorizadoPor: items.find((i: any) => i.autorizadoPor)?.autorizadoPor || null,
+          beneficiario: items.find((i: any) => i.beneficiario)?.beneficiario || null,
           montoTotal: items.reduce((acc: number, curr: any) => acc + Number(isEntry ? (curr.costo || 0) : (curr.monto || curr.valorCortesia || 0)), 0),
-          isGift: !isEntry && (m.notas?.toLowerCase().includes('regalo') || m.notas?.toLowerCase().includes('cortesía')),
+          isGift: !isEntry && (representante.tipo === 'cortesia' || representante.notas?.toLowerCase().includes('regalo') || representante.notas?.toLowerCase().includes('cortesía')),
           paymentMethod: isEntry ? (m.notas?.split('|')[0] || 'STOCK') : (m.notas?.match(/Pago:\s*([^|]+)/i)?.[1]?.trim() || 'Efectivo'),
           details: items
         });
@@ -114,11 +120,11 @@ export function Auditoria({ movements }: AuditTabProps) {
         processedIds.add(gId);
       } else if (!gId) {
         const isEntry = m.tipo === 'entrada';
-        res.push({ 
-          ...m, 
-          id: m.id, 
-          isGroup: false, 
-          isGift: !isEntry && (m.notas?.toLowerCase().includes('regalo') || m.notas?.toLowerCase().includes('cortesía')), 
+        res.push({
+          ...m,
+          id: m.id,
+          isGroup: false,
+          isGift: !isEntry && (m.tipo === 'cortesia' || m.notas?.toLowerCase().includes('regalo') || m.notas?.toLowerCase().includes('cortesía')),
           montoTotal: isEntry ? (m.costo || 0) : (m.monto || m.valorCortesia || 0),
           paymentMethod: isEntry ? 'INDIVIDUAL' : 'VENTA INDIV.',
           details: [m]
@@ -223,8 +229,8 @@ function FilterButton({ active, onClick, label, icon: Icon, color }: any) {
 function AuditMobileCard({ m, isExpanded, onToggle, onPrint }: any) {
   const isEntry = m.tipo === 'entrada';
   const isGift = m.isGift;
-  // Extraer el beneficiario de las notas del primer item
-  const paraQuien = m.details[0]?.notas?.match(/Para:\s*([^|]+)/i)?.[1]?.trim();
+  const paraQuien = m.beneficiario || m.details.find((d: any) => d.beneficiario)?.beneficiario || null;
+  const autorizadoPor = m.autorizadoPor || m.details.find((d: any) => d.autorizadoPor)?.autorizadoPor || null;
 
   return (
     <div className={`w-full bg-slate-900/40 border border-slate-800 rounded-[1.2rem] overflow-hidden transition-all ${isExpanded ? 'border-indigo-500/40 bg-slate-900' : ''}`}>
@@ -235,42 +241,52 @@ function AuditMobileCard({ m, isExpanded, onToggle, onPrint }: any) {
                <span className={`text-[12px] font-black px-1.5 py-0.5 rounded uppercase ${isEntry ? 'bg-orange-500' : isGift ? 'bg-purple-600' : 'bg-indigo-600'} text-white`}>
                 {isEntry ? 'STOCK' : isGift ? 'REGALO' : 'VENTA'}
                </span>
-               <span className="text-[8px] font-black text-slate-600 uppercase italic">
+               <span className="text-[12px] font-black text-slate-200 uppercase italic">
                 {new Date(m.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                </span>
             </div>
             <h3 className="text-white font-black text-[11px] uppercase italic truncate tracking-tight">
               {m.id || "SIN ID"}
             </h3>
-            {isGift && paraQuien && (
-              <div className="flex items-center gap-1 mt-1">
-                <User size={8} className="text-purple-400" />
-                <span className="text-[12px] font-black text-purple-400 uppercase truncate">Para: {paraQuien}</span>
+            {isGift && (paraQuien || autorizadoPor) && (
+              <div className="flex flex-col gap-0.5 mt-1">
+                {paraQuien && (
+                  <div className="flex items-center gap-1">
+                    <User size={8} className="text-purple-400" />
+                    <span className="text-[12px] font-black text-purple-400 uppercase truncate">Para: {paraQuien}</span>
+                  </div>
+                )}
+                {autorizadoPor && (
+                  <div className="flex items-center gap-1">
+                    <User size={8} className="text-purple-500" />
+                    <span className="text-[12px] font-bold text-purple-500 uppercase truncate">Aut: {autorizadoPor}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
           <div className="text-right ml-2">
             <p className={`text-base font-black italic leading-none ${isEntry ? 'text-orange-400' : (isGift ? 'text-purple-400' : 'text-emerald-400')}`}>
               ${Math.round(m.montoTotal).toLocaleString()}
-              {isGift && <span className="block text-[7px] font-black text-purple-500 uppercase tracking-tighter mt-1">Regalo</span>}
+              {isGift && <span className="block text-[12px] font-black text-purple-500 uppercase tracking-tighter mt-1">Regalo</span>}
             </p>
           </div>
         </div>
         
         <div className="flex items-center justify-between border-t border-slate-800/50 pt-2">
-          <span className="text-[10px] font-bold text-slate-500 uppercase truncate italic">
+          <span className="text-[12px] font-bold text-slate-200 uppercase ">
             Por: {m.nombreUsuario?.split(' ')[0]}
           </span>
-          <span className="text-[10px] font-black text-slate-600 uppercase">
+          <span className="text-[12px] font-black text-slate-200 uppercase">
             {m.paymentMethod}
           </span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 bg-slate-950/30 border-t border-slate-800">
-        <button 
-          onClick={(e) => { e.stopPropagation(); m.tipo === 'venta' && onPrint(); }} 
-          className={`flex items-center justify-center gap-1.5 py-2 border-r border-slate-800 transition-colors ${m.tipo === 'venta' ? 'text-indigo-400' : 'text-slate-700 opacity-20'}`}
+        <button
+          onClick={(e) => { e.stopPropagation(); !isEntry && onPrint(); }}
+          className={`flex items-center justify-center gap-1.5 py-2 border-r border-slate-800 transition-colors ${!isEntry ? (isGift ? 'text-purple-400' : 'text-indigo-400') : 'text-slate-700 opacity-20'}`}
         >
           <Printer size={12} />
           <span className="text-[8px] font-black uppercase">Ticket</span>
@@ -303,8 +319,8 @@ function AuditMobileCard({ m, isExpanded, onToggle, onPrint }: any) {
 function AuditRow({ m, isExpanded, onToggle, onPrint }: any) {
   const isEntry = m.tipo === 'entrada';
   const isGift = m.isGift;
-  // Extraer el beneficiario de las notas del primer item
-  const paraQuien = m.details[0]?.notas?.match(/Para:\s*([^|]+)/i)?.[1]?.trim();
+  const paraQuien = m.beneficiario || m.details.find((d: any) => d.beneficiario)?.beneficiario || null;
+  const autorizadoPor = m.autorizadoPor || m.details.find((d: any) => d.autorizadoPor)?.autorizadoPor || null;
 
   return (
     <>
@@ -325,6 +341,11 @@ function AuditRow({ m, isExpanded, onToggle, onPrint }: any) {
                   PARA: {paraQuien.toUpperCase()}
                 </span>
               )}
+              {isGift && autorizadoPor && (
+                <span className="text-[9px] font-bold text-purple-300 bg-purple-900/40 px-2 py-0.5 rounded italic">
+                  AUT: {autorizadoPor.toUpperCase()}
+                </span>
+              )}
             </div>
           </div>
         </td>
@@ -338,8 +359,8 @@ function AuditRow({ m, isExpanded, onToggle, onPrint }: any) {
         </td>
         <td className="p-6 text-center">
           <div className="flex items-center justify-center gap-2">
-            {m.tipo === 'venta' && (
-              <button onClick={(e) => { e.stopPropagation(); onPrint(); }} className="p-3 bg-slate-800 hover:bg-white hover:text-slate-900 rounded-xl transition-all">
+            {!isEntry && (
+              <button onClick={(e) => { e.stopPropagation(); onPrint(); }} className={`p-3 rounded-xl transition-all hover:text-slate-900 ${isGift ? 'bg-purple-900/40 hover:bg-purple-400 text-purple-400' : 'bg-slate-800 hover:bg-white text-slate-300'}`}>
                 <Printer size={16} />
               </button>
             )}

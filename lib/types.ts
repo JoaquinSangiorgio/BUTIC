@@ -32,19 +32,16 @@ export interface Botella {
   precio: number
   precioCosto: number
   
-  // 🥃 Propiedades para BOTELLAS (Insumos Físicos)
-  mlPorUnidad: number       // Capacidad de la botella (750, 1000, 1500)
-  stockMl: number           // Stock real en mililitros acumulados
-  stockMinMl: number        // Alerta mínima en mililitros
+  stockActual: number       
+  stockMinimo: number       
 
   stockInicialJornada?: number 
   conteoFisicoReal?: number;
-  graduacion?: number       // % Alcohol (opcional para botellas)
+  
 
   // 🍹 Propiedades para TRAGOS / COMBOS
   receta?: ItemReceta[]     // Array de insumos vinculados
   isCombo?: boolean         // Flag visual
-  capacidadVaso?: number    // ML del vaso para cálculos de dilución (solo tragos)
 
   createdAt: string
   updatedAt?: string
@@ -58,11 +55,13 @@ export interface MovimientoStock {
   tipo: 'entrada' | 'venta' | 'ajuste'
   
   cantidad: number          
-  
   monto: number             
   valorCortesia?: number   
-  costo: number             
+  costo: number     
   
+  autorizadoPor?: string | null;
+  beneficiario?: string | null;    
+  categoria?: string;
   usuarioId: string
   nombreUsuario: string
   notas?: string
@@ -82,23 +81,35 @@ export interface Alerta {
 
 // ✅ Estadísticas de Dashboard
 export interface EstadisticasDashboard {
-  totalBotellas: number     // Calculado como stockMl / mlPorUnidad
-  valorTotal: number        // Inversión total en bodega (stock * costo)
+  totalUnidades: number     // Calculado como stockMl / mlPorUnidad
+  valorTotal: number        // (stock * costo)
   conteoStockBajo: number
   conteoSinStock: number
-  revenueToday: number      // Ventas totales del día
+  revenueToday: number      
+  costoCortesiasToday:number;
 }
 
 
 export interface JornadaAudit {
   id?: string;
-  fecha: string;            // ISO String
+  fecha: string;           
+  fechaCorresponde: string;
+  fechaCarga: string;
   totalVendidos: number;    // Unidades totales vendidas esa noche
   totalDiferencia: number;  // El desvío total (ej: -5.5 unidades)
+  
+  resumenCortesias: {
+    responsable: string;
+    cantidad: number;
+    costoTotal: number;
+  }[];
+
+  
   productos: {
     nombre: string;
     inicial: number;
     vendido: number;
+    cortesias:number;
     esperado: number;
     fisico: number;
     diferencia: number;

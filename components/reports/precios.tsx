@@ -28,15 +28,7 @@ export function Precios({ bottles }: { bottles: Botella[] }) {
         const insumo = bottles.find(b => b.id === (ing.productId || (ing as any).productID));
         if (!insumo) return acc;
 
-        // 🔥 MEJORA DE LÓGICA: Diferenciar Trago de Combo
-        if (item.tipo === 'combo') {
-          // Para COMBOS: Multiplicamos el costo unitario por la cantidad de botellas
-          return acc + (Number(insumo.precioCosto || 0) * Number(ing.cantidad));
-        } else {
-          // Para TRAGOS: Cálculo preciso por mililitro
-          const costoPorMl = (insumo.precioCosto || 0) / (insumo.mlPorUnidad || 750);
-          return acc + (costoPorMl * Number(ing.cantidad));
-        }
+        return acc + (Number(insumo.precioCosto || 0) * Number(ing.cantidad));
       }, 0) || 0) : (item.precioCosto || 0);
 
       const margen = precioVenta - costoFinal;

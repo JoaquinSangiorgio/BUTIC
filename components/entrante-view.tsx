@@ -252,8 +252,8 @@ export default function EntranteView() {
             </div>
           ) : (
             filteredBottles.map(bottle => {
-              const stockVisual = bottle.mlPorUnidad > 0 ? (bottle.stockMl / bottle.mlPorUnidad).toFixed(1) : '0';
-              const isLow = bottle.stockMl <= bottle.stockMinMl;
+              const stockVisual = (bottle.stockActual ?? 0).toFixed(1);
+              const isLow = (bottle.stockActual ?? 0) <= (bottle.stockMinimo ?? 0);
 
               return (
                 <button key={bottle.id} onClick={() => addToCart(bottle)} className="w-full flex items-center justify-between p-4 bg-slate-900/30 border-2 border-slate-800 hover:border-indigo-500/50 rounded-2xl transition-all group active:scale-[0.98]">
@@ -290,6 +290,7 @@ export default function EntranteView() {
           className="lg:hidden w-full flex justify-center py-5 cursor-pointer shrink-0" 
           onClick={() => setShowFullCartMobile(!showFullCartMobile)}
         >
+          
           <div className={`w-12 h-1.5 rounded-full transition-all duration-500 ${showFullCartMobile ? 'bg-slate-700 w-8' : 'bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]'}`} />
         </div>
 
@@ -299,12 +300,13 @@ export default function EntranteView() {
           ${!showFullCartMobile ? 'h-full lg:h-auto' : ''}
         `}>
           <div className="flex items-center gap-3">
-            <PackageCheck className="w-5 h-5 text-emerald-400" />
-            <h2 className="font-black text-white uppercase text-[10px] lg:text-sm italic tracking-widest">Detalle Ingreso</h2>
+            <PackageCheck className="w-10 h-10 text-emerald-400" />
+            <h2 className="font-black text-white uppercase text-[10px] lg:text-sm  tracking-widest">Detalle Ingreso</h2>
+        
           </div>
           <div className="flex items-center gap-4">
             {cart.length > 0 && (
-              <span className="text-[10px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded-lg uppercase italic">
+              <span className="text-[12px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded-lg uppercase italic">
                 {cart.length}
               </span>
             )}

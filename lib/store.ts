@@ -26,14 +26,18 @@ export async function getBottles(): Promise<Botella[]> {
 // --- 2. REGISTRAR MOVIMIENTO (Con lógica de cierre isClosed) ---
 export async function addMovement(
   productId: string,
-  type: 'venta' | 'entrada' | 'ajuste',
+  type: 'venta' | 'entrada' | 'ajuste' | 'cortesia',
   quantity: number, 
   userId: string,
   userName: string,
   notes: string = "",
   externalDate?: string,
   manualCost?: number,
-  batchId?: string 
+  batchId?: string,
+  autorizadoPor?: string | null,
+  beneficiario?: string | null,
+  montoManual?: number,
+  skipStock: boolean = false // 👈 Recibimos el flag
 ): Promise<any> {
   const batch = writeBatch(db);
   const normalizedType = type.toLowerCase();
@@ -42,43 +46,47 @@ export async function addMovement(
     const botRef = doc(db, COL_BOTELLAS, productId);
     const botSnap = await getDoc(botRef);
     if (!botSnap.exists()) return null;
+    
     const item = { id: botSnap.id, ...botSnap.data() } as Botella;
 
-    const esRegalo = normalizedType === 'venta' && (
-      notes.includes("CORTESIA") || 
-      notes.includes("REGALO") || 
-      notes.includes("INVITACION") ||
-      notes.includes("Pago: REGALO")
-    );
+    const esRegalo = normalizedType === 'cortesia' || 
+                     notes.toUpperCase().includes("REGALO") || 
+                     notes.toUpperCase().includes("CORTESIA");
       
-    const precioUnitario = Number(item.precio || 0);
     const timestamp = externalDate || new Date().toISOString();
 
-    // --- LÓGICA DE STOCK ---
-    if ((item.tipo === 'trago' || item.tipo === 'combo') && item.receta) {
-      for (const ing of item.receta) {
+    // --- 1. LÓGICA DE STOCK (ENCAPSULADA EN SKIPSTOCK) ---
+    // Solo ejecutamos los updates de stock si skipStock es FALSE
+    if (!skipStock) { 
+      if ((item.tipo === 'trago' || item.tipo === 'combo') && item.receta) {
+        for (const ing of item.receta) {
+          const insumoId = ing.productId || (ing as any).productID;
+          const insumoRef = doc(db, COL_BOTELLAS, insumoId);
+          const insumoSnap = await getDoc(insumoRef);
+          
+          if (!insumoSnap.exists()) continue;
+          const dataInsumo = insumoSnap.data() as any;
+          
+          const desc = Number(ing.cantidad) * quantity;
+          const nuevoStock = Math.max(0, (Number(dataInsumo.stockActual) || 0) - desc);
+          
+          batch.update(insumoRef, { 
+            stockActual: nuevoStock, 
+            updatedAt: timestamp 
+          });
+        }
+      } else {
+        const ajuste = normalizedType === 'entrada' ? quantity : -quantity;
+        const nuevoStock = Math.max(0, (Number(item.stockActual) || 0) + ajuste);
         
-        const insumoId = ing.productId || (ing as any).productID;
-        const insumoRef = doc(db, COL_BOTELLAS, insumoId);
-        const insumoSnap = await getDoc(insumoRef);
-        if (!insumoSnap.exists()) continue;
-        const dataInsumo = insumoSnap.data() as Botella;
-        let desc = (item.tipo === 'trago') 
-          ? Number(ing.cantidad) * quantity 
-          : Number(ing.cantidad) * quantity * (Number(dataInsumo.mlPorUnidad) || 0);
-
-        const nuevoStock = Math.max(0, (Number(dataInsumo.stockMl) || 0) - desc);
-        batch.update(insumoRef, { stockMl: nuevoStock, updatedAt: timestamp });
-        await checkAndCreateAlerts(insumoId, { ...dataInsumo, stockMl: nuevoStock });
+        batch.update(botRef, { 
+          stockActual: nuevoStock, 
+          updatedAt: timestamp 
+        });
       }
-    } else {
-      const mlPorU = Number(item.mlPorUnidad || 0);
-      const ajuste = normalizedType === 'entrada' ? mlPorU * quantity : -mlPorU * quantity;
-      const nuevoStock = Math.max(0, (Number(item.stockMl) || 0) + ajuste);
-      batch.update(botRef, { stockMl: nuevoStock, updatedAt: timestamp });
-      await checkAndCreateAlerts(productId, { ...item, stockMl: nuevoStock });
     }
 
+    // --- 2. REGISTRO DEL MOVIMIENTO (LO QUE FALTABA) ---
     const movementRef = doc(collection(db, COL_MOVIMIENTOS));
     
     const movementData = {
@@ -86,22 +94,25 @@ export async function addMovement(
       nombreBotella: item.nombre,
       tipo: normalizedType,
       cantidad: quantity,
-      monto: esRegalo ? 0 : precioUnitario * quantity,
-      valorCortesia: esRegalo ? precioUnitario * quantity : 0, 
-      costo: normalizedType === 'entrada' 
-        ? (manualCost !== undefined ? manualCost * quantity : (item.precioCosto || 0) * quantity)
-        : (item.precioCosto || 0) * quantity, 
+      monto: esRegalo ? 0 : (montoManual !== undefined ? montoManual : Number(item.precio || 0) * quantity),
       usuarioId: userId,
       nombreUsuario: userName,
       notas: notes,
-      batchId: batchId || null, 
-      isClosed: false, // 🔥 Clave para el Arqueo: Indica que la venta no ha sido cerrada aún
+      autorizadoPor: autorizadoPor || null,
+      beneficiario: beneficiario || null,
+      batchId: batchId || null,
+      esInsumo: skipStock === true,
+      precioUnitario: Number(item.precio || 0),
+      isClosed: false,
       createdAt: timestamp,
       categoria: item.categoria || 'otros'
     };
 
     batch.set(movementRef, movementData);
+    
+    // Ejecutamos todo el lote en una sola transacción
     await batch.commit();
+    
     return { id: movementRef.id, ...movementData };
 
   } catch (error) {
@@ -114,9 +125,8 @@ export async function addMovement(
 export async function addBottle(datos: Partial<Botella>) {
   const docRef = await addDoc(collection(db, COL_BOTELLAS), {
     ...datos,
-    stockMl: Number(datos.stockMl || 0),
-    stockMinMl: Number(datos.stockMinMl || 0),
-    mlPorUnidad: Number(datos.mlPorUnidad || 0),
+    stockMl: Number(datos.stockActual || 0),
+    stockMinMl: Number(datos.stockMinimo || 0),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
@@ -268,23 +278,34 @@ export async function getDashboardStats() {
     });
 
     return {
-      totalBotellas: Number(onlyBottles.reduce((sum, i) => sum + (Number(i.stockMl || 0) / Number(i.mlPorUnidad || 1)), 0).toFixed(1)),
-      valorTotal: Number(onlyBottles.reduce((sum, i) => {
-          const unidades = Number(i.stockMl || 0) / Number(i.mlPorUnidad || 1);
-          return sum + (unidades * Number(i.precioCosto || 0));
-        }, 0).toFixed(2)),
+  // ✅ Antes: (stockMl / mlPorUnidad). Ahora: Suma directa de stockActual.
+  totalBotellas: Number(
+    onlyBottles.reduce((sum, i) => sum + Number(i.stockActual || 0), 0)
+    .toFixed(1)
+  ),
 
-      conteoSinStock: onlyBottles.filter(i => Number(i.stockMl || 0) < UMBRAL).length,
+  // ✅ Antes calculaba unidades por ml. Ahora usa stockActual directo.
+  valorTotal: Number(
+    onlyBottles.reduce((sum, i) => {
+      const unidades = Number(i.stockActual || 0);
+      return sum + (unidades * Number(i.precioCosto || 0));
+    }, 0).toFixed(2)
+  ),
 
-      conteoStockBajo: onlyBottles.filter(i => {
-          const stock = Number(i.stockMl || 0);
-          const min = Number(i.stockMinMl || 0);
-          return stock <= min && stock >= UMBRAL;
-      }).length,
+  // ✅ Filtra los que tienen 0 o menos en stockActual
+  conteoSinStock: onlyBottles.filter(i => Number(i.stockActual || 0) <= 0).length,
 
-      revenueToday: Number(revenueToday),
-      giftsToday: Number(giftsTotalToday) 
-    };
+  // ✅ Compara stockActual contra stockMinimo
+  conteoStockBajo: onlyBottles.filter(i => {
+      const stock = Number(i.stockActual || 0);
+      const min = Number(i.stockMinimo || 0);
+      // Es stock bajo si es menor al mínimo, pero mayor a 0 (si es 0 es "Sin Stock")
+      return min > 0 && stock <= min && stock > 0;
+  }).length,
+
+  revenueToday: Number(revenueToday),
+  giftsToday: Number(giftsTotalToday) 
+};
   } catch (error) { 
     return { totalBotellas: 0, valorTotal: 0, conteoStockBajo: 0, conteoSinStock: 0, revenueToday: 0, giftsToday: 0 }; 
   }

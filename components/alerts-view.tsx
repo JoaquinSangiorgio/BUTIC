@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+
+
 export function AlertsView({ onRefreshAlerts }: { onRefreshAlerts?: () => void }) {
   const [alerts, setAlerts] = useState<Alerta[]>([])
   const [bottles, setBottles] = useState<Botella[]>([])
@@ -192,6 +194,8 @@ export function AlertsView({ onRefreshAlerts }: { onRefreshAlerts?: () => void }
           })
         )}
       </div>
+      
+
       
       <style jsx>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }

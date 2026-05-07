@@ -50,9 +50,15 @@ export function Metricas({ reportData }: { reportData: any }) {
     const gananciaReal = totalVentas - totalCostoVendido;
     const porcentajeMargen = totalVentas > 0 ? (gananciaReal / totalVentas) * 100 : 0;
 
-    const valorRegalado = sales
-      .filter((m: any) => (m.notas?.toLowerCase().includes('regalo') || m.notas?.toLowerCase().includes('cortesía')))
-      .reduce((a: number, c: any) => a + Number(c.monto || c.valorCortesia || 0), 0);
+    const cortesias = reportData.movements.filter((m: any) =>
+      m.tipo === 'cortesia' &&
+      !m.esInsumo &&
+      !m.notas?.includes('HIDE_FROM_HISTORY') &&
+      isInTimeRange(m.createdAt)
+    );
+    const valorRegalado = cortesias.reduce((a: number, c: any) =>
+      a + (Number(c.precioUnitario || 0) * Number(c.cantidad || 0)), 0
+    );
 
     // 3. Gráfico de Rendimiento y Top Salidas (Cálculo unificado)
     const hourlyMap: Record<string, any> = {};
