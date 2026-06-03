@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-// Definimos las categorías para el filtro
+
 const CATEGORIES: { value: CategoriaProducto | 'all', label: string, icon: string }[] = [
   { value: 'all', label: 'Todas', icon: '📁' },
   { value: 'whisky', label: 'Whiskies', icon: '🥃' },
@@ -275,7 +275,7 @@ export default function EntranteView() {
         </div>
       </div>
 
-      {/* PANEL DERECHO: ESTILO "FLOATING SHEET" EN MOBILE */}
+      {/* PANEL DERECHO */}
       <div className={`
         fixed transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
         lg:relative lg:flex-1 lg:h-full lg:translate-y-0 lg:z-10 lg:inset-0

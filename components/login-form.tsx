@@ -129,8 +129,11 @@ export function LoginForm() {
             </button>
           </form>
           
-          <p className="text-center text-slate-600 text-[8px] font-black uppercase tracking-[0.5em] mt-10 opacity-50">
-            v1.0 
+          <p className="text-center text-slate-200 text-[12px] font-black uppercase tracking-[0.5em] mt-10 ">
+            Credenciales de prueba:
+          </p>
+          <p className="text-center text-slate-200 text-[12px] font-black uppercase tracking-[0.5em] mt-10 ">
+            admin@prueba.com / admin123
           </p>
         </div>
       </div>

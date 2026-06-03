@@ -28,7 +28,7 @@ export function VentaView() {
   const [isCourtesy, setIsCourtesy] = useState(false)
   const [autorizadoPor, setAutorizadoPor] = useState('')
 
-  const AUTORIZADORES = ['Richard', 'Guido', 'Sabrina', 'Personal', 'Mala', 'Paula']
+  const AUTORIZADORES = ['Tomas', 'Martin', 'Sofia', 'Valentina', 'Juan', 'Camila']
   const CONSUMO_INTERNO = ['Pública','Trago amigo', 'Personal', 'Trago ingreso', 'Anticipada']
 
   const [sessionSales, setSessionSales] = useState<{
@@ -113,7 +113,7 @@ export function VentaView() {
           </style>
         </head>
         <body>
-          <div class="text-center header">WISH</div>
+          <div class="text-center header">DISCOBAR</div>
           <div class="text-center" style="font-size: 9px; margin-bottom: 5px;">Mendoza, Argentina</div>
           <div class="text-center" style="font-weight: bold; border: 1px solid #000; padding: 2px;">${isCourtesy ? 'INVITACIÓN' : 'TICKET FACTURA'}</div>
           <div class="divider"></div>
@@ -146,7 +146,7 @@ export function VentaView() {
       return;
     }
     
-    // ✅ CLAVE: Capturamos el tipo en una constante para que no cambie durante el loop
+  
     const finalType = isCourtesy ? 'cortesia' : 'venta';
     const ticketId = `TICK-${Date.now()}`;
     const timestamp = new Date().toISOString();
@@ -164,11 +164,11 @@ export function VentaView() {
       const item = bottles.find(b => b.id === sale.id);
       if (!item) return;
 
-      // 1. REGISTRO DEL COMBO (Padre)
+      // 1. REGISTRO DEL COMBO 
       movementsToSync.push({
         botellaId: sale.id,
         nombreBotella: sale.name,
-        tipo: finalType, // ✅ Forzamos el tipo capturado
+        tipo: finalType, 
         cantidad: sale.qty,
         monto: isCourtesy ? 0 : sale.precio * sale.qty,
         usuarioId: user?.id || 'admin',
@@ -180,14 +180,14 @@ export function VentaView() {
         esInsumo: false 
       });
 
-      // 2. REGISTRO DE INGREDIENTES (Hijos)
+      // 2. REGISTRO DE INGREDIENTES 
       if ((item.tipo === 'combo' || item.tipo === 'trago') && item.receta) {
         item.receta.forEach(ing => {
           const insumoData = bottles.find(b => b.id === ing.productId);
           movementsToSync.push({
             botellaId: ing.productId,
             nombreBotella: insumoData?.nombre || 'Insumo',
-            tipo: finalType, // ✅ Forzamos el mismo tipo que el padre para la Auditoría
+            tipo: finalType, 
             cantidad: Number(ing.cantidad) * sale.qty,
             monto: 0,
             usuarioId: user?.id || 'admin',
